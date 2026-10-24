@@ -1,6 +1,6 @@
 import os
 import psycopg2
-from flask import Flask, render_template_string, request, redirect, url_for
+from flask import Flask, render_template_string, request, redirect
 from prometheus_flask_exporter import PrometheusMetrics
 
 app = Flask(__name__)
@@ -12,10 +12,9 @@ DB_USER = os.environ.get('POSTGRES_USER', 'taxiuser')
 DB_PASS = os.environ.get('POSTGRES_PASSWORD', 'adminpass123')
 
 def get_db_connection():
-    conn = psycopg2.connect(
+    return psycopg2.connect(
         host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASS
     )
-    return conn
 
 def init_db():
     try:
@@ -49,9 +48,8 @@ HTML_TEMPLATE = '''
         .student-info { text-align: center; color: #7f8c8d; font-size: 17px; margin-bottom: 30px; }
         .form-group { background: #f8f9fa; padding: 25px 30px; border-radius: 10px; margin-bottom: 35px; border: 1px solid #e9ecef; }
         form { display: flex; flex-direction: column; gap: 15px; }
-        input { padding: 14px 18px; border: 1px solid #ced4da; border-radius: 8px; font-size: 16px; outline: none; transition: 0.2s; }
-        input:focus { border-color: #27ae60; box-shadow: 0 0 6px rgba(39, 174, 96, 0.3); }
-        button { padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 18px; cursor: pointer; transition: 0.2s; }
+        input { padding: 14px 18px; border: 1px solid #ced4da; border-radius: 8px; font-size: 16px; outline: none; }
+        button { padding: 15px; background-color: #27ae60; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 18px; cursor: pointer; }
         button:hover { background-color: #219150; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 16px; }
         th, td { border: 1px solid #dee2e6; padding: 14px 18px; text-align: left; }
@@ -106,7 +104,7 @@ def index():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-        cur.execute('SELECT * FROM bookings ORDER BY id DESC;')
+        cur.execute('SELECT id, customer_name, pickup_location, dropoff_location, status FROM bookings ORDER BY id DESC;')
         bookings = cur.fetchall()
         cur.close()
         conn.close()
@@ -116,20 +114,26 @@ def index():
 
 @app.route('/add', methods=['POST'])
 def add_booking():
-    name = request.form['customer_name']
-    pickup = request.form['pickup_location']
-    dropoff = request.form['dropoff_location']
+    init_db()
+    name = request.form.get('customer_name')
+    pickup = request.form.get('pickup_location')
+    dropoff = request.form.get('dropoff_location')
     
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        'INSERT INTO bookings (customer_name, pickup_location, dropoff_location) VALUES (%s, %s, %s);',
-        (name, pickup, dropoff)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
-    return redirect(url_for('index'))
+    if name and pickup and dropoff:
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            cur.execute(
+                'INSERT INTO bookings (customer_name, pickup_location, dropoff_location) VALUES (%s, %s, %s);',
+                (name, pickup, dropoff)
+            )
+            conn.commit()
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"Loi them du lieu: {e}")
+        
+    return redirect('/')
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
