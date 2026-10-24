@@ -1,0 +1,123 @@
+version: '3.8'
+
+networks:
+  backend:
+    driver: bridge
+  frontend:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  grafana_data:
+  loki_data:
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: taxi-db
+    restart: always
+    environment:
+      POSTGRES_DB: taxidb
+      POSTGRES_USER: taxiuser
+      POSTGRES_PASSWORD: adminpass123
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - backend
+
+  web:
+    build: .
+    container_name: taxi-web
+    restart: always
+    environment:
+      DB_HOST: postgres
+      POSTGRES_DB: taxidb
+      POSTGRES_USER: taxiuser
+      POSTGRES_PASSWORD: adminpass123
+    ports:
+      - "5000:5000"
+    networks:
+      - backend
+      - frontend
+    depends_on:
+      - postgres
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: taxi-pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@taxi.com
+      PGADMIN_DEFAULT_PASSWORD: adminpass123
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - backend
+
+  nginx:
+    image: nginx:alpine
+    container_name: taxi-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - frontend
+    depends_on:
+      - web
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: taxi-prometheus
+    restart: always
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - frontend
+      - backend
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: taxi-grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=adminpass123
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - frontend
+
+  loki:
+    image: grafana/loki:2.9.2
+    container_name: taxi-loki
+    restart: always
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    networks:
+      - frontend
+      - backend
+
+  promtail:
+    image: grafana/promtail:2.9.2
+    container_name: taxi-promtail
+    restart: always
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - frontend
+      - backend
+    depends_on:
+      - loki
