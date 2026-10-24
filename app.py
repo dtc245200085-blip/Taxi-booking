@@ -9,7 +9,7 @@ metrics = PrometheusMetrics(app)
 DB_HOST = os.environ.get('DB_HOST', 'postgres')
 DB_NAME = os.environ.get('POSTGRES_DB', 'taxidb')
 DB_USER = os.environ.get('POSTGRES_USER', 'taxiuser')
-DB_PASS = os.environ.get('POSTGRES_PASSWORD', 'taxipass123')
+DB_PASS = os.environ.get('POSTGRES_PASSWORD', 'adminpass123')
 
 def get_db_connection():
     conn = psycopg2.connect(
